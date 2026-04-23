@@ -1,9 +1,3 @@
-"""
-Purpose : Create Custom Amazon Virtual Private Cloud (VPC)
-Created by : Vidit Pawar
-Created Under : CIS Technology Office 
-"""
-
 import boto3,time
 import os
 

@@ -1,8 +1,3 @@
-######################################
-#Purpose: To monitor EC2 instances
-#Created By: Maitrayee Dhumal
-#Created Under: CIS Technology Office
-######################################
 import boto3
 import sys
 import os

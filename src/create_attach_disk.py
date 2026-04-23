@@ -1,9 +1,3 @@
-"""
-Purpose : Create and Attach disk to a VM
-Created by : Vidit Pawar
-Created Under : CIS Technology Office 
-"""
- 
 import boto3
 import time
 import os

@@ -1,9 +1,3 @@
-###################################################################
-#Purpose: To Start EC2 instances with Tags = Environment: Non Prod
-#Created By: Divya Gujarathi
-#Reviewed By:
-###################################################################
-
 import boto3
 from datetime import datetime
 

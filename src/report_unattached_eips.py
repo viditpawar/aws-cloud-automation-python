@@ -1,8 +1,3 @@
-######################################
-#Purpose: To report Unattached Elastic IPs
-#Created By: Vidit Pawar, Maitrayee Dhumal
-#Created Under: CIS Technology Office
-######################################
 import boto3
 import logging
 import os

@@ -1,9 +1,3 @@
-######################################
-#Purpose: To increase the EBS Volume Size
-#Created By: Maitrayee Dhumal
-#Created under: CIS Technology Office
-######################################
-
 import json
 import boto3
 import time
