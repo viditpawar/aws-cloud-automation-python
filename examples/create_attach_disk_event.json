@@ -1,0 +1,7 @@
+{
+  "instance_id": "i-0123456789abcdef0",
+  "availability_zone": "us-east-1a",
+  "size": 20,
+  "volume_type": "gp3",
+  "device_name": "/dev/sdf"
+}

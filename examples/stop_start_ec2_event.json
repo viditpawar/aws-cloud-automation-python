@@ -1,0 +1,5 @@
+{
+  "action": "stop",
+  "tag_key": "Environment",
+  "tag_value": "NonProd"
+}

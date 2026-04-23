@@ -13,16 +13,6 @@ sns = boto3.client("sns")
 
 
 def lambda_handler(event, context):
-    """
-    Expected optional event:
-    {
-      "publish_to_sns": false
-    }
-
-    Optional environment variable:
-    SNS_TOPIC_ARN=arn:aws:sns:region:account-id:topic-name
-    """
-
     try:
         publish_to_sns = event.get("publish_to_sns", False)
         sns_topic_arn = os.environ.get("SNS_TOPIC_ARN")
@@ -56,13 +46,8 @@ def lambda_handler(event, context):
                 Subject="AWS Unattached Elastic IP Report",
                 Message=message,
             )
-            logger.info("Report published to SNS topic %s", sns_topic_arn)
 
-        return response(
-            200,
-            "Elastic IP scan completed successfully.",
-            summary,
-        )
+        return response(200, "Elastic IP scan completed successfully.", summary)
 
     except ClientError as e:
         logger.exception("AWS ClientError while scanning Elastic IPs")
