@@ -1,21 +1,25 @@
 # AWS Cloud Automation with Python
 
-This repository contains Python-based AWS automation examples built for common infrastructure operations use cases using Boto3 and AWS Lambda.
+This repository contains portfolio-safe AWS automation scripts built with Python and Boto3. These examples are inspired by real-world infrastructure operations use cases such as EC2, EBS, monitoring, and cost-optimization workflows.
 
-## Use Cases
+## Current Use Cases
 - Resize EBS volumes
-- Report unattached Elastic IPs
-- Monitor EC2 instances
-- Create VPC resources
 
 ## Tech Stack
 - Python
 - AWS Lambda
 - Boto3
-- EC2
-- EBS
-- CloudWatch
-- VPC
+- Amazon EC2
+- Amazon EBS
 
-## Notes
-These examples are generalized portfolio versions and do not include any proprietary organizational data, internal identifiers, or environment-specific configurations.
+## Project Structure
+
+```bash
+aws-cloud-automation-python/
+├── README.md
+├── .gitignore
+├── requirements.txt
+├── src/
+│   └── resize_ebs_volume.py
+└── examples/
+    └── resize_ebs_volume_event.json
