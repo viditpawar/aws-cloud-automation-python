@@ -1,7 +1,14 @@
 {
-  "instance_id": "i-0123456789abcdef0",
-  "sns_topic_arn": "arn:aws:sns:us-east-1:123456789012:ec2-alerts",
-  "cpu_threshold": 80,
-  "period": 300,
-  "evaluation_periods": 2
+  "note": "Event payload is not used by this script.",
+  "required_environment_variables": [
+    "instance_id",
+    "AWS_Region",
+    "year",
+    "month1",
+    "day1",
+    "month2",
+    "day2",
+    "prd",
+    "stat"
+  ]
 }

@@ -1,3 +1,7 @@
 {
-  "publish_to_sns": false
+  "note": "Event payload is not used by this script.",
+  "required_environment_variables": [
+    "AWS_Region",
+    "SNS_Topic"
+  ]
 }

@@ -1,4 +1,10 @@
 {
-  "cidr_block": "10.0.0.0/16",
-  "vpc_name": "PortfolioVPC"
+  "note": "Event payload is not used by this script.",
+  "required_environment_variables": [
+    "IPv4_CIDR",
+    "AWS_Region",
+    "az",
+    "VPC_Name",
+    "RT_Name"
+  ]
 }

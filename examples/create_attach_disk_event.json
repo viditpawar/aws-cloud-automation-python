@@ -1,7 +1,10 @@
 {
-  "instance_id": "i-0123456789abcdef0",
-  "availability_zone": "us-east-1a",
-  "size": 20,
-  "volume_type": "gp3",
-  "device_name": "/dev/sdf"
+  "note": "Event payload is not used by this script.",
+  "required_environment_variables": [
+    "voltype",
+    "val_name",
+    "inst_id",
+    "device_name",
+    "size_of_disk"
+  ]
 }

@@ -1,79 +1,55 @@
-import json
-import logging
-import os
+###################################################################
+#Purpose: To Start EC2 instances with Tags = Environment: Non Prod
+#Created By: Divya Gujarathi
+#Reviewed By:
+###################################################################
 
 import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+from datetime import datetime
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+#Listing all EC2 instances in the account
+ec2 = boto3.resource('ec2')
+instances = ec2.instances.all()
+client_ec2 = boto3.client('ec2')
 
-ec2 = boto3.client("ec2")
+
+#Get the current time
+
+now = datetime.now()
+date_time = now.strftime("%m/%d/%Y, %H:%M:%S")
+
+#Creating SNS client to send emails to topic subscriptions
+sns_client = boto3.client("sns")
+
+#This string list stores instance IDs/Instance names that have been started through this script
+output=[]
+
+#SNS Topic ARN created with a email subscription
+SNS_Topic= "arn:aws:sns:us-east-1:956064229902:MyTopic"
 
 
 def lambda_handler(event, context):
-    try:
-        action = (event.get("action") or os.environ.get("ACTION", "")).lower()
-        tag_key = event.get("tag_key") or os.environ.get("TAG_KEY", "Environment")
-        tag_value = event.get("tag_value") or os.environ.get("TAG_VALUE", "NonProd")
-
-        if action not in ["start", "stop"]:
-            return response(400, "Action must be 'start' or 'stop'.")
-
-        filters = [
-            {"Name": f"tag:{tag_key}", "Values": [tag_value]},
-            {"Name": "instance-state-name", "Values": ["running", "stopped"]}
-        ]
-
-        reservations = ec2.describe_instances(Filters=filters).get("Reservations", [])
-        instance_ids = []
-
-        for reservation in reservations:
-            for instance in reservation.get("Instances", []):
-                instance_ids.append(instance["InstanceId"])
-
-        if not instance_ids:
-            return response(
-                200,
-                f"No matching EC2 instances found for tag {tag_key}={tag_value}.",
-                {"instance_ids": []}
-            )
-
-        if action == "start":
-            ec2.start_instances(InstanceIds=instance_ids)
-        else:
-            ec2.stop_instances(InstanceIds=instance_ids)
-
-        logger.info("%s action initiated for instances: %s", action, instance_ids)
-
-        return response(
-            200,
-            f"EC2 {action} action initiated successfully.",
-            {
-                "action": action,
-                "tag_key": tag_key,
-                "tag_value": tag_value,
-                "instance_ids": instance_ids,
-            },
-        )
-
-    except ClientError as e:
-        logger.exception("AWS ClientError while starting/stopping instances")
-        return response(500, f"AWS error: {e.response['Error']['Message']}")
-    except BotoCoreError as e:
-        logger.exception("BotoCoreError while starting/stopping instances")
-        return response(500, f"Boto error: {str(e)}")
-    except Exception as e:
-        logger.exception("Unexpected error")
-        return response(500, f"Unexpected error: {str(e)}")
-
-
-def response(status_code, message, data=None):
-    body = {
-        "message": message,
-        "data": data or {}
-    }
-    return {
-        "statusCode": status_code,
-        "body": json.dumps(body)
-    }
+    
+    instancename = '' #To Store instance names
+    body = 'No Instances to Start' #Body will be used to convert list to string. Stores a default value
+    for instance in instances:
+    #To check if an instance has tags
+     if instance.tags:
+         for tag in instance.tags:
+            if tag["Key"] == 'Name':
+                instancename = tag["Value"]
+            if ((tag["Key"]=='Environment') and (tag["Value"]=='Non Prod') and (instance.state['Name']=='stopped')):
+                body=''
+                client_ec2.start_instances(InstanceIds=[instance.id])
+                output.append("Started Instance " +instancename+" with Instance ID "+ str(instance.id)+ " at "+ str(instance.launch_time))
+                
+   #List is converted to string through this loop
+    for element in output:
+        body+=element+'.\n'
+    
+   #Sending body as message to topic
+    response = sns_client.publish(
+    TargetArn=SNS_Topic,
+    Message=body,
+    Subject="Started Instances Report for "+date_time,
+    MessageStructure='text')

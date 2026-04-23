@@ -1,103 +1,89 @@
+######################################
+#Purpose: To increase the EBS Volume Size
+#Created By: Maitrayee Dhumal
+#Created under: CIS Technology Office
+######################################
+
 import json
-import logging
+import boto3
+import time
 import os
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+#User-input for volume ID
+VOLUME_ID = os.environ['VOLUME_ID']
 
-ec2 = boto3.client("ec2")
+#User-input for the volume size (in GB) required
+Vol_Size = int(os.environ['Size'])
+
+#String to store the name of the volume
+volname= ''
+
+##Here we are listing EC2 Resources
+ec2_resource = boto3.resource('ec2')
+
+EC2_CLIENT = boto3.client('ec2')
+
+#Volume to be fetched
+volume = ec2_resource.Volume(VOLUME_ID)
 
 
 def lambda_handler(event, context):
-    """
-    Expected event:
-    {
-      "volume_id": "vol-xxxxxxxxxxxxxxxxx",
-      "new_size": 30
-    }
-    """
+    
+    #Referencing for the lambda handler
+    EC2_CLIENT = boto3.client('ec2')
+    ec2_resource = boto3.resource('ec2')
+    volume = ec2_resource.Volume(VOLUME_ID)
 
-    try:
-        volume_id = event.get("volume_id") or os.environ.get("VOLUME_ID")
-        new_size = event.get("new_size") or os.environ.get("NEW_SIZE")
+#Fetching the name of the volume
+#If name of the volume does not exist, continue with VOLUME_ID
+if volume.tags:
+    for tag in volume.tags:
+            if tag["Key"] == 'Name':
+                volname = tag["Value"]
+else:
+    volname = VOLUME_ID
+           
+                
+#variable to store the previous size of the volume
+prev_size= volume.size
 
-        if not volume_id:
-            return response(400, "Missing 'volume_id' in event or environment variable.")
+def get_modification_state(volume_id):
+    response = EC2_CLIENT.describe_volumes_modifications(
+        VolumeIds=[
+            VOLUME_ID
+        ]
+    )
+    return response['VolumesModifications'][0]['ModificationState']
 
-        if not new_size:
-            return response(400, "Missing 'new_size' in event or environment variable.")
+time.sleep(15)
 
-        try:
-            new_size = int(new_size)
-        except ValueError:
-            return response(400, "'new_size' must be an integer.")
+#Calling the function to increase the size of the volume
+try:
+  
+    if Vol_Size > prev_size:
+        modify_volume_response = EC2_CLIENT.modify_volume(
+    
+    #required parameters to modify the volume size
+        VolumeId=VOLUME_ID,
+            Size=Vol_Size
+        )
 
-        volume_info = ec2.describe_volumes(VolumeIds=[volume_id])
-        volumes = volume_info.get("Volumes", [])
-
-        if not volumes:
-            return response(404, f"Volume {volume_id} not found.")
-
-        volume = volumes[0]
-        current_size = volume["Size"]
-
-        volume_name = volume_id
-        for tag in volume.get("Tags", []):
-            if tag.get("Key") == "Name":
-                volume_name = tag.get("Value")
+    else: 
+        print(f"Volume size is already {Vol_Size} GB")
+        
+    while True:
+        state = get_modification_state(VOLUME_ID)
+        if state == 'completed' or state == None:
+                #Printing the update and modified size of the volume
+                print(f'Volume {volname} successfully resized')
+                print(f'Volume size updated from {volume.size} GB to {Vol_Size} GB')
                 break
+        elif state == 'failed':
+                raise Exception('Failed to modify volume size')
+        else:
+                time.sleep(60)
 
-        if new_size <= current_size:
-            return response(
-                400,
-                f"New size must be greater than current size ({current_size} GiB)."
-            )
-
-        modify_result = ec2.modify_volume(
-            VolumeId=volume_id,
-            Size=new_size
-        )
-
-        logger.info(
-            "Volume resize initiated for %s (%s): %s -> %s GiB",
-            volume_name,
-            volume_id,
-            current_size,
-            new_size,
-        )
-
-        return response(
-            200,
-            "Volume resize initiated successfully.",
-            {
-                "volume_id": volume_id,
-                "volume_name": volume_name,
-                "previous_size_gib": current_size,
-                "requested_size_gib": new_size,
-                "modification_state": modify_result.get("VolumeModification", {}).get("ModificationState")
-            },
-        )
-
-    except ClientError as e:
-        logger.exception("AWS ClientError while modifying volume")
-        return response(500, f"AWS error: {e.response['Error']['Message']}")
-    except BotoCoreError as e:
-        logger.exception("BotoCoreError while modifying volume")
-        return response(500, f"Boto error: {str(e)}")
-    except Exception as e:
-        logger.exception("Unexpected error")
-        return response(500, f"Unexpected error: {str(e)}")
-
-
-def response(status_code, message, data=None):
-    body = {
-        "message": message,
-        "data": data or {}
-    }
-    return {
-        "statusCode": status_code,
-        "body": json.dumps(body)
-    }
+except :
+  
+    print(f'Cannot resize volume {volname}!')

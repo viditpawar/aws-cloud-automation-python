@@ -1,4 +1,7 @@
 {
-  "volume_id": "vol-0123456789abcdef0",
-  "new_size": 30
+  "note": "Event payload is not used by this script.",
+  "required_environment_variables": [
+    "VOLUME_ID",
+    "Size"
+  ]
 }

@@ -1,86 +1,69 @@
-import json
-import logging
-import os
-import time
-
+"""
+Purpose : Create and Attach disk to a VM
+Created by : Vidit Pawar
+Created Under : CIS Technology Office 
+"""
+ 
 import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+import time
+import os
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+#Enter the type of disk to be attached
+voltype = os.environ['voltype']
+#Enter the name to be given to the disk
+val_name = os.environ['val_name']
+#Enter instance ID
+inst_id = os.environ['inst_id']
+#Enter device name
+device_name = os.environ['device_name']
 
-ec2 = boto3.client("ec2")
+#Enter size of disk in GB
+size_of_disk = int(os.environ['size_of_disk'])
+#Listing EC2 Resources
+ec2 = boto3.resource("ec2")
 
+#Creating an EC2 Client
+ec2_client=boto3.client("ec2")
 
 def lambda_handler(event, context):
-    try:
-        instance_id = event.get("instance_id") or os.environ.get("INSTANCE_ID")
-        availability_zone = event.get("availability_zone") or os.environ.get("AVAILABILITY_ZONE")
-        size = int(event.get("size") or os.environ.get("SIZE", 10))
-        volume_type = event.get("volume_type") or os.environ.get("VOLUME_TYPE", "gp3")
-        device_name = event.get("device_name") or os.environ.get("DEVICE_NAME", "/dev/sdf")
+    ec2 = boto3.resource("ec2")
 
-        if not instance_id:
-            return response(400, "Missing 'instance_id'.")
-        if not availability_zone:
-            return response(400, "Missing 'availability_zone'.")
+#Filtering EC2 Instances by instance ID
+instances = ec2.instances.filter(
+    InstanceIds=[
+        inst_id,
+    ],
+)
 
-        create_response = ec2.create_volume(
-            AvailabilityZone=availability_zone,
-            Size=size,
-            VolumeType=volume_type,
-            TagSpecifications=[
+#Checking for Availibility-Zone
+for instance in instances:
+    availabilityzone=(instance.placement['AvailabilityZone'])
+
+#Creating Volume
+new_volume = ec2_client.create_volume(
+    AvailabilityZone=availabilityzone,
+    Size=size_of_disk,
+    VolumeType=voltype,
+    TagSpecifications=[
+        {
+            'ResourceType': 'volume',
+            'Tags': [
                 {
-                    "ResourceType": "volume",
-                    "Tags": [{"Key": "Name", "Value": f"{instance_id}-extra-volume"}]
+                    'Key': 'Name',
+                    'Value': val_name
                 }
             ]
-        )
+        }
+    ]
+)
+print(f'Created volume ID: {new_volume["VolumeId"]} ')
+volid=new_volume["VolumeId"] #Storing Volume-ID
 
-        volume_id = create_response["VolumeId"]
-        logger.info("Created volume %s", volume_id)
+#Adding buffer time
+time.sleep(8)
 
-        waiter = ec2.get_waiter("volume_available")
-        waiter.wait(VolumeIds=[volume_id])
-
-        ec2.attach_volume(
-            Device=device_name,
-            InstanceId=instance_id,
-            VolumeId=volume_id
-        )
-
-        logger.info("Attached volume %s to instance %s", volume_id, instance_id)
-
-        return response(
-            200,
-            "Disk created and attachment initiated successfully.",
-            {
-                "instance_id": instance_id,
-                "volume_id": volume_id,
-                "availability_zone": availability_zone,
-                "size_gib": size,
-                "volume_type": volume_type,
-                "device_name": device_name,
-            },
-        )
-
-    except ClientError as e:
-        logger.exception("AWS ClientError while creating/attaching volume")
-        return response(500, f"AWS error: {e.response['Error']['Message']}")
-    except BotoCoreError as e:
-        logger.exception("BotoCoreError while creating/attaching volume")
-        return response(500, f"Boto error: {str(e)}")
-    except Exception as e:
-        logger.exception("Unexpected error")
-        return response(500, f"Unexpected error: {str(e)}")
-
-
-def response(status_code, message, data=None):
-    body = {
-        "message": message,
-        "data": data or {}
-    }
-    return {
-        "statusCode": status_code,
-        "body": json.dumps(body)
-    }
+#Attaching Volume
+attach_response=ec2_client.attach_volume(Device=device_name,
+      InstanceId=inst_id,
+      VolumeId=volid
+    )

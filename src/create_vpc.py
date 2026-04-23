@@ -1,66 +1,45 @@
-import json
-import logging
+"""
+Purpose : Create Custom Amazon Virtual Private Cloud (VPC)
+Created by : Vidit Pawar
+Created Under : CIS Technology Office 
+"""
+
+import boto3,time
 import os
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+IPv4_CIDR = os.environ['IPv4_CIDR']
+AWS_Region= os.environ['AWS_Region']
+az= os.environ['az']
+VPC_Name= os.environ['VPC_Name']
+RT_Name= os.environ['RT_Name']
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-
-ec2 = boto3.client("ec2")
-
-
+#Lambda Handler function
 def lambda_handler(event, context):
-    try:
-        cidr_block = event.get("cidr_block") or os.environ.get("CIDR_BLOCK")
-        vpc_name = event.get("vpc_name") or os.environ.get("VPC_NAME", "PortfolioVPC")
+    ec2=boto3.resource("ec2", region_name=AWS_Region)
 
-        if not cidr_block:
-            return response(400, "Missing 'cidr_block' in event or environment variable.")
+#Listing EC2 resources
+vpc_client = boto3.client("ec2", region_name=AWS_Region)
+ec2 = boto3.resource("ec2", region_name=AWS_Region)
+vpc_resource = boto3.resource("ec2", region_name=AWS_Region)
 
-        create_response = ec2.create_vpc(CidrBlock=cidr_block)
-        vpc_id = create_response["Vpc"]["VpcId"]
-
-        ec2.modify_vpc_attribute(VpcId=vpc_id, EnableDnsSupport={"Value": True})
-        ec2.modify_vpc_attribute(VpcId=vpc_id, EnableDnsHostnames={"Value": True})
-
-        ec2.create_tags(
-            Resources=[vpc_id],
-            Tags=[{"Key": "Name", "Value": vpc_name}]
+#Creating VPC
+vpc = ec2.create_vpc(CidrBlock=IPv4_CIDR,InstanceTenancy='default',
+        TagSpecifications=[{'ResourceType':'vpc','Tags': [{'Key':'Name','Value':VPC_Name}]}]
         )
+print(f'VPC ID=> {vpc.id}')
 
-        logger.info("Created VPC %s with CIDR %s", vpc_id, cidr_block)
-
-        return response(
-            200,
-            "VPC created successfully.",
-            {
-                "vpc_id": vpc_id,
-                "cidr_block": cidr_block,
-                "vpc_name": vpc_name,
-                "dns_support": True,
-                "dns_hostnames": True,
-            },
-        )
-
-    except ClientError as e:
-        logger.exception("AWS ClientError while creating VPC")
-        return response(500, f"AWS error: {e.response['Error']['Message']}")
-    except BotoCoreError as e:
-        logger.exception("BotoCoreError while creating VPC")
-        return response(500, f"Boto error: {str(e)}")
-    except Exception as e:
-        logger.exception("Unexpected error")
-        return response(500, f"Unexpected error: {str(e)}")
-
-
-def response(status_code, message, data=None):
-    body = {
-        "message": message,
-        "data": data or {}
-    }
-    return {
-        "statusCode": status_code,
-        "body": json.dumps(body)
-    }
+#Creating route table 
+route_table = vpc_resource.create_route_table(
+            VpcId=vpc.id,
+            TagSpecifications=[
+                {
+                    'ResourceType': 'route-table',
+                    'Tags': [
+                        {
+                            'Key': 'Name',
+                            'Value': RT_Name
+                        },
+                    ]
+                },
+            ]) 
+print(f'Route table=> {route_table.id}')

@@ -1,83 +1,113 @@
-import json
-import logging
-import os
-
+######################################
+#Purpose: To monitor EC2 instances
+#Created By: Maitrayee Dhumal
+#Created Under: CIS Technology Office
+######################################
 import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+import sys
+import os
+from datetime import datetime, timedelta
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+#User-input for EC2 instance id
+instance_id =os.environ['instance_id']
 
-cloudwatch = boto3.client("cloudwatch")
+#User input for the region required
+AWS_REGION = os.environ['AWS_Region']
+
+#User input for setting the start and end dates
+st= datetime(int(os.environ['year']), int(os.environ['month1']), int(os.environ['day1']))
+
+et= datetime(int(os.environ['year']), int(os.environ['month2']), int(os.environ['day2']))
 
 
+#User input for the duration(in seconds) of the statistics required.
+#User must input the sum of seconds of the number of days
+prd= int(os.environ['prd'])
+
+
+#User input for type of statistic required. 
+#User can opt out of Average/Minimum/Maximum/Sum statistics
+stat= os.environ['stat']
+
+#Getting the ec2 resource we need the mertrics for
+EC2_RESOURCE = boto3.resource('ec2' , AWS_REGION)
 def lambda_handler(event, context):
-    try:
-        instance_id = event.get("instance_id") or os.environ.get("INSTANCE_ID")
-        sns_topic_arn = event.get("sns_topic_arn") or os.environ.get("SNS_TOPIC_ARN")
-        cpu_threshold = float(event.get("cpu_threshold") or os.environ.get("CPU_THRESHOLD", 80))
-        period = int(event.get("period") or os.environ.get("PERIOD", 300))
-        evaluation_periods = int(
-            event.get("evaluation_periods") or os.environ.get("EVALUATION_PERIODS", 2)
-        )
+    ec2_resource = boto3.resource('ec2', AWS_REGION)
 
-        if not instance_id:
-            return response(400, "Missing 'instance_id' in event or environment variable.")
-
-        if not sns_topic_arn:
-            return response(400, "Missing 'sns_topic_arn' in event or environment variable.")
-
-        alarm_name = f"HighCPU-{instance_id}"
-
-        cloudwatch.put_metric_alarm(
-            AlarmName=alarm_name,
-            AlarmDescription=f"Alarm when CPU exceeds {cpu_threshold}% for EC2 instance {instance_id}",
-            ActionsEnabled=True,
-            AlarmActions=[sns_topic_arn],
-            MetricName="CPUUtilization",
-            Namespace="AWS/EC2",
-            Statistic="Average",
-            Dimensions=[
-                {"Name": "InstanceId", "Value": instance_id}
-            ],
-            Period=period,
-            EvaluationPeriods=evaluation_periods,
-            Threshold=cpu_threshold,
-            ComparisonOperator="GreaterThanThreshold",
-            Unit="Percent"
-        )
-
-        logger.info("CloudWatch alarm configured for instance %s", instance_id)
-
-        return response(
-            200,
-            "EC2 monitoring configured successfully.",
-            {
-                "instance_id": instance_id,
-                "alarm_name": alarm_name,
-                "cpu_threshold": cpu_threshold,
-                "period": period,
-                "evaluation_periods": evaluation_periods,
-            },
-        )
-
-    except ClientError as e:
-        logger.exception("AWS ClientError while configuring CloudWatch alarm")
-        return response(500, f"AWS error: {e.response['Error']['Message']}")
-    except BotoCoreError as e:
-        logger.exception("BotoCoreError while configuring CloudWatch alarm")
-        return response(500, f"Boto error: {str(e)}")
-    except Exception as e:
-        logger.exception("Unexpected error")
-        return response(500, f"Unexpected error: {str(e)}")
+#Monitoring the state of the EC2 Instance
+instance = EC2_RESOURCE.Instance(instance_id)
+client = boto3.client('cloudwatch' , AWS_REGION)
+print(f' EC2 instance => "{instance_id}"')
+print(f' STATE => {instance.state["Name"]}')
 
 
-def response(status_code, message, data=None):
-    body = {
-        "message": message,
-        "data": data or {}
-    }
-    return {
-        "statusCode": status_code,
-        "body": json.dumps(body)
-    }
+#Monitoring the CPU utilization of the EC2 Instance
+cpuresponse = client.get_metric_statistics(
+    Namespace='AWS/EC2',
+    MetricName='CPUUtilization',
+    Dimensions=[{'Name': 'InstanceId','Value': instance_id},],
+            StartTime=st,
+            EndTime=et,
+            Period=prd,
+            Statistics=[stat],
+            Unit='Percent'
+    )
+for cpu in cpuresponse['Datapoints']:
+  if stat in cpu:
+    print(f" CPU UTILIZATION => {cpu[stat]}")
+
+#Monitoring the disk read utilization of the EC2 Instance 
+diskreadresponse = client.get_metric_statistics(
+    Namespace='AWS/EC2',  MetricName='DiskReadBytes',
+    Dimensions=[{'Name': 'InstanceId', 'Value': instance_id,},],
+        StartTime=st,
+        EndTime=et,
+        Period=prd,
+        Statistics=[stat],
+        Unit='Bytes'
+    )
+for disk in diskreadresponse['Datapoints']:
+  if stat in disk:
+    print(f" DISK READ UTILIZATION => {disk[stat]}")
+
+#Monitoring the disk write utilization of the EC2 Instance
+diskwriteresponse = client.get_metric_statistics(
+    Namespace='AWS/EC2',  MetricName='DiskWriteBytes',
+    Dimensions=[{'Name': 'InstanceId', 'Value': instance_id,},],
+        StartTime=st,
+        EndTime=et,
+        Period=prd,
+        Statistics=[stat],
+        Unit='Bytes'
+    )
+for disk in diskreadresponse['Datapoints']:
+  if stat in disk:
+    print(f" DISK WRITE UTILIZATION => {disk[stat]}")
+
+#Monitoring the disk read operations utilization of the EC2 Instance     
+diskreadopsresponse = client.get_metric_statistics(
+    Namespace='AWS/EC2',  MetricName='DiskReadOps',
+    Dimensions=[{'Name': 'InstanceId', 'Value': instance_id,},],
+        StartTime=st,
+        EndTime=et,
+        Period=prd,
+        Statistics=[stat],
+        Unit='Count'
+    )
+for disk in diskreadopsresponse['Datapoints']:
+  if stat in disk:
+    print(f" DISK READ OPS UTILIZATION => {disk[stat]}")
+
+#Monitoring the disk write operations utilization of the EC2 Instance
+diskwriteopsresponse = client.get_metric_statistics(
+    Namespace='AWS/EC2',  MetricName='DiskWriteOps',
+    Dimensions=[{'Name': 'InstanceId', 'Value': instance_id,},],
+        StartTime=st,
+        EndTime=et,
+        Period=prd,
+        Statistics=[stat],
+        Unit='Count'
+    )
+for disk in diskwriteopsresponse['Datapoints']:
+  if stat in disk:
+    print(f" DISK WRITE OPS UTILIZATION => {disk[stat]}")

@@ -1,92 +1,53 @@
-import json
+######################################
+#Purpose: To report Unattached Elastic IPs
+#Created By: Vidit Pawar, Maitrayee Dhumal
+#Created Under: CIS Technology Office
+######################################
+import boto3
 import logging
 import os
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+#User input for the region required
+AWS_REGION = os.environ['AWS_Region']
 
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+#This stores a default value for body
+body = ''
 
-ec2 = boto3.client("ec2")
-sns = boto3.client("sns")
+#This string list stores the output message to be displayed
+output=[]
+
+#We are creating an SNS client to send emails to users for list of unattached IPs 
+sns_client = boto3.client("sns")
+
+#The SNS Topic ARN created with a email subscription required to publish the emails
+SNS_Topic= os.environ['SNS_Topic']
 
 
 def lambda_handler(event, context):
-    try:
-        publish_to_sns = event.get("publish_to_sns", False)
-        sns_topic_arn = os.environ.get("SNS_TOPIC_ARN")
+#Here we are listing EC2 Resources
+    ec2_resource = boto3.resource("ec2")
 
-        addresses_response = ec2.describe_addresses()
-        addresses = addresses_response.get("Addresses", [])
+client = boto3.client('ec2',AWS_REGION)
 
-        unattached_eips = []
-        for address in addresses:
-            if "AssociationId" not in address and "InstanceId" not in address and "NetworkInterfaceId" not in address:
-                unattached_eips.append(
-                    {
-                        "public_ip": address.get("PublicIp"),
-                        "allocation_id": address.get("AllocationId"),
-                        "domain": address.get("Domain"),
-                    }
-                )
+#assigning describe_address function to describe all the Elastic IP addresses.
+addresses_dict = client.describe_addresses()
 
-        summary = {
-            "total_elastic_ips": len(addresses),
-            "unattached_elastic_ips_count": len(unattached_eips),
-            "unattached_elastic_ips": unattached_eips,
-        }
+#Here, we are filtering through all the obtained IP addresses for unattached ones and saving them in output
+print(" Region: " + AWS_REGION)
+for eip_dict in addresses_dict['Addresses']:
+    if "InstanceId" not in eip_dict:
+        output.append(eip_dict['PublicIp'] + " => does not have any instances associated")
 
-        logger.info("Elastic IP scan complete: %s", json.dumps(summary))
+#Creating the list of unattached IPs and storing the list in body       
+for element in output:
+    body+=element+'.\n'
+print(body)
 
-        if publish_to_sns and sns_topic_arn:
-            message = build_sns_message(summary)
-            sns.publish(
-                TopicArn=sns_topic_arn,
-                Subject="AWS Unattached Elastic IP Report",
-                Message=message,
-            )
-
-        return response(200, "Elastic IP scan completed successfully.", summary)
-
-    except ClientError as e:
-        logger.exception("AWS ClientError while scanning Elastic IPs")
-        return response(500, f"AWS error: {e.response['Error']['Message']}")
-    except BotoCoreError as e:
-        logger.exception("BotoCoreError while scanning Elastic IPs")
-        return response(500, f"Boto error: {str(e)}")
-    except Exception as e:
-        logger.exception("Unexpected error")
-        return response(500, f"Unexpected error: {str(e)}")
-
-
-def build_sns_message(summary):
-    lines = [
-        "AWS Unattached Elastic IP Report",
-        "",
-        f"Total Elastic IPs: {summary['total_elastic_ips']}",
-        f"Unattached Elastic IPs: {summary['unattached_elastic_ips_count']}",
-        "",
-    ]
-
-    if summary["unattached_elastic_ips"]:
-        lines.append("Details:")
-        for eip in summary["unattached_elastic_ips"]:
-            lines.append(
-                f"- Public IP: {eip['public_ip']}, Allocation ID: {eip['allocation_id']}, Domain: {eip['domain']}"
-            )
-    else:
-        lines.append("No unattached Elastic IPs found.")
-
-    return "\n".join(lines)
-
-
-def response(status_code, message, data=None):
-    body = {
-        "message": message,
-        "data": data or {}
-    }
-    return {
-        "statusCode": status_code,
-        "body": json.dumps(body)
-    }
+#Publishing the email to user with the list of unattached IPs in the given AWS Region
+sns = sns_client.publish(
+    TargetArn=SNS_Topic,
+    Message=body,
+    Subject="List of unattached IP addresses in " + AWS_REGION,
+    MessageStructure='text'
+    )
+             

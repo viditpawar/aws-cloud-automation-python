@@ -1,5 +1,7 @@
 {
-  "action": "stop",
-  "tag_key": "Environment",
-  "tag_value": "NonProd"
+  "note": "Event payload is not used by this script.",
+  "required_environment_variables": [],
+  "hardcoded_values": [
+    "SNS_Topic is currently hardcoded in src/stop_start_ec2.py"
+  ]
 }
